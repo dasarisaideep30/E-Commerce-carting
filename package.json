@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "name": "vite-project",
   "private": true,
   "version": "0.0.0",
@@ -30,5 +31,32 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "vite": "^6.0.5"
+=======
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dasarisaideep30/E-Commerce-carting.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dasarisaideep30/E-Commerce-carting/issues"
+  },
+  "homepage": "https://github.com/dasarisaideep30/E-Commerce-carting#readme",
+  "description": "",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cloudinary": "^2.5.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "nodemon": "^3.1.9"
+>>>>>>> 98f8cf8 (test commit)
   }
 }
