@@ -9,45 +9,6 @@ const catchAsyncErrors = require("../middleware/catchAsyncError");
 const bcrypt = require("bcryptjs");
 require("dotenv").config();
 
-
-// router.post("/create-user", upload.single("file"), catchAsyncErrors(async (req, res, next) => {
-//     console.log("Creating user...");
-//     const { name, email, password } = req.body;
-
-//     const userEmail = await User.findOne({ email });
-//     if (userEmail) {
-//         if (req.file) {
-//             const filepath = path.join(__dirname, "../uploads", req.file.filename);
-//             try {
-//                 fs.unlinkSync(filepath);
-//             } catch (err) {
-//                 console.log("Error removing file:", err);
-//                 return res.status(500).json({ message: "Error removing file" });
-//             }
-//         }
-//         return next(new ErrorHandler("User already exists", 400));
-//     }
-
-//     let fileUrl = "";
-//     if (req.file) {
-//         fileUrl = path.join("uploads", req.file.filename);
-//     }
-//     const hashedPassword = await bcrypt.hash(password, 10);
-//     console.log("At Create ", "Password: ", password, "Hash: ", hashedPassword);
-//     const user = await User.create({
-//         name,
-//         email,
-//         password: hashedPassword,
-//         avatar: {
-//             public_id: req.file?.filename || "",
-//             url: fileUrl,
-//         },
-//     });
-//     console.log(user)
-//     res.status(201).json({ success: true, user });
-// }));
-
-
 router.post(
     "/create-user",
     upload.single("file"), // Expect file to be named "file"
@@ -111,6 +72,27 @@ router.post("/login", catchAsyncErrors(async (req, res, next) => {
         success: true,
         user,
     });
+}));
+
+router.get("/profile", catchAsyncErrors(async (req, res, next) => {
+  const { email } = req.query;
+  if (!email) {
+      return next(new ErrorHandler("Please provide an email", 400));
+  }
+  const user = await User.findOne({ email });
+  if (!user) {
+      return next(new ErrorHandler("User not found", 404));
+  }
+  res.status(200).json({
+      success: true,
+      user: {
+          name: user.name,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          avatarUrl: user.avatar.url
+      },
+      addresses: user.addresses,
+  });
 }));
 
 module.exports = router;
