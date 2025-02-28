@@ -1,5 +1,3 @@
-
-
 import LoginPage from "./pages/Login.jsx";
 import SignupPage from "./pages/Signup.jsx";
 import Home from "./pages/Home.jsx";
@@ -8,5 +6,8 @@ import MyProducts from "./pages/myProducts.jsx";
 import Cart from "./pages/cart.jsx";
 import ProductDetails from "./pages/productDetails.jsx";
 import Profile from "./pages/profile.jsx";
-import createAddress from "./pages/createAddress.jsx";
-export { SignupPage, LoginPage, Home, CreateProduct, MyProducts, Cart, ProductDetails,Profile,createAddress }; 
+import CreateAddress from "./pages/createAddress.jsx"; // Fixed case
+import SelectAddress from "./pages/selectAddress.jsx";
+import OrderConfirmation from "./pages/OrderConfirmation.jsx";
+
+export { SignupPage, LoginPage, Home, CreateProduct, MyProducts, Cart, ProductDetails, Profile, CreateAddress, SelectAddress, OrderConfirmation }; 
