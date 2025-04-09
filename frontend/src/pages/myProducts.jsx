@@ -1,24 +1,26 @@
 import React, { useEffect, useState } from "react";
-import Myproduct from "../components/auth/myProducts"; 
-import Nav from "../components/auth/nav";
+import Myproduct from "../components/auth/myProducts"; // <-- Import the Product component
 
+import Nav from "../components/auth/nav";
+import axios from "axios";
 
 export default function MyProducts() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const email = "saideep@example.com";
+    const email = "Pranav@gmail.com";
 
     useEffect(() => {
-        fetch(`http://localhost:8000/api/v2/product/my-products?email=${email}`)
+        let response=axios.get(`http://localhost:8000/api/v2/product/my-products?email=${email}`)
+        
             .then((res) => {
-                if (!res.ok) {
+                console.log("Response from server:", res);
+                if (!res.data) {
                     throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                return res.json();
-            })
-            .then((data) => {
-                setProducts(data.products);
+                };
+                console.log("Response data:", res.data.products);
+                
+                setProducts(res.data.products);
                 setLoading(false);
             })
             .catch((err) => {
@@ -37,16 +39,16 @@ export default function MyProducts() {
     }
 
     return (
-    <>
-        <Nav />
-        <div className="w-full min-h-screen bg-neutral-800">
-            <h1 className="text-3xl text-center text-white py-6">My products</h1>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-4">
-                {products.map((product) => (
-                    <Myproduct key={product._id} {...product} />
-                ))}
+        <>
+            <Nav />
+            <div className="w-full min-h-screen bg-neutral-800">
+                <h1 className="text-3xl text-center text-white py-6">My products</h1>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 p-4">
+                    {products.map((product) => (
+                        <Myproduct key={product._id} {...product} />
+                    ))}
+                </div>
             </div>
-        </div>
-    </>    
+        </>
     );
 }
