@@ -27,6 +27,11 @@ router.post('/create-product',isAuthenticatedUser, pupload.array('images', 10), 
     console.log("🛒 Creating product");
     const { name, description, category, tags, price, stock, email } = req.body;
 
+    // Strict Admin Access Control
+    if (email !== "saideep@gmail.com" || req.user.email !== "saideep@gmail.com") {
+        return res.status(403).json({ error: 'Forbidden: Only the administrator has access to create products.' });
+    }
+
     // Map uploaded files to accessible URLs
     const images = req.files.map((file) => {
         return `/products/${path.basename(file.path)}`;
@@ -126,8 +131,10 @@ router.get('/product/:id', isAuthenticatedUser, async (req, res) => {
 });
 
 router.put('/update-product/:id',isAuthenticatedUser, pupload.array('images', 10), async (req, res) => {
-    const { id } = req.params;
-    const { name, description, category, tags, price, stock, email } = req.body;
+    // Strict Admin Access Control
+    if (email !== "saideep@gmail.com" || req.user.email !== "saideep@gmail.com") {
+        return res.status(403).json({ error: 'Forbidden: Only the administrator has access to perform this action.' });
+    }
 
     try {
         const existingProduct = await Product.findById(id);
@@ -177,7 +184,10 @@ router.put('/update-product/:id',isAuthenticatedUser, pupload.array('images', 10
 });
 
 router.delete('/delete-product/:id',isAuthenticatedUser, async (req, res) => {
-    const { id } = req.params;
+    // Strict Admin Access Control
+    if (req.user.email !== "saideep@gmail.com") {
+        return res.status(403).json({ error: 'Forbidden: Only the administrator has access to perform this action.' });
+    }
 
     try {
         const existingProduct = await Product.findById(id);
@@ -294,6 +304,25 @@ router.put('/cartproduct/quantity',isAuthenticatedUser, async (req, res) => {
  console.error('Server error:', err);
  res.status(500).json({ error: 'Server Error' });
  }
+});
+
+router.delete('/cartproduct/:email/:productId', isAuthenticatedUser, async (req, res) => {
+    const { email, productId } = req.params;
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        user.cart = user.cart.filter(item => item.productId.toString() !== productId);
+        await user.save();
+        res.status(200).json({
+            message: 'Product removed from cart',
+            cart: user.cart
+        });
+    } catch (err) {
+        console.error('Server error:', err);
+        res.status(500).json({ error: 'Server Error' });
+    }
 });
 
 

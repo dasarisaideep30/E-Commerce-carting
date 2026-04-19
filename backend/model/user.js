@@ -49,11 +49,9 @@ const userSchema = new mongoose.Schema({
   avatar:{
     public_id: {
       type: String,
-      required: true,
     },
     url: {
       type: String,
-      required: true,
     },
  },
  cart: [
@@ -89,16 +87,16 @@ const userSchema = new mongoose.Schema({
 //   this.password = await bcrypt.hash(this.password, 10);
 // });
 
-// // jwt token
-// userSchema.methods.getJwtToken = function () {
-//   return jwt.sign({ id: this._id}, process.env.JWT_SECRET_KEY,{
-//     expiresIn: process.env.JWT_EXPIRES,
-//   });
-// };
+// jwt token
+userSchema.methods.getJwtToken = function () {
+  return jwt.sign({ id: this._id}, "randomtoken1234567890",{
+    expiresIn: "7d",
+  });
+};
 
-// // compare password
-// userSchema.methods.comparePassword = async function (enteredPassword) {
-//   return await bcrypt.compare(enteredPassword, this.password);
-// };
+// compare password
+userSchema.methods.comparePassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
 
 module.exports = mongoose.model("User", userSchema);

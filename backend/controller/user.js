@@ -8,6 +8,7 @@ const ErrorHandler = require("../utils/ErrorHandler");
 const catchAsyncErrors = require("../middleware/catchAsyncError");
 const { isAuthenticatedUser } = require('../middleware/auth');
 const bcrypt = require("bcryptjs");
+const sendToken = require("../utils/jwtToken");
 require("dotenv").config();
 
 
@@ -31,7 +32,7 @@ router.post("/create-user", upload.single("file"), catchAsyncErrors(async (req, 
 
     let fileUrl = "";
     if (req.file) {
-        fileUrl = path.join("uploads", req.file.filename);
+        fileUrl = `uploads/${req.file.filename}`;
     }
     const hashedPassword = await bcrypt.hash(password, 10);
     console.log("At Create ", "Password: ", password, "Hash: ", hashedPassword);
@@ -45,7 +46,7 @@ router.post("/create-user", upload.single("file"), catchAsyncErrors(async (req, 
         },
     });
     console.log(user)
-    res.status(201).json({ success: true, user });
+    sendToken(user, 201, res);
 }));
 
 router.post("/login", catchAsyncErrors(async (req, res, next) => {
@@ -58,16 +59,12 @@ router.post("/login", catchAsyncErrors(async (req, res, next) => {
     if (!user) {
         return next(new ErrorHandler("Invalid Email or Password", 401));
     }
-    const isPasswordMatched = await bcrypt.compare(password, user.password);
-    console.log("At Auth", "Password: ", password, "Hash: ", user.password);
+    const isPasswordMatched = await user.comparePassword(password);
+    console.log("At Auth", "Email: ", email, "Match: ", isPasswordMatched);
     if (!isPasswordMatched) {
         return next(new ErrorHandler("Invalid Email or Password", 401));
     }
-    user.password = undefined;
-    res.status(200).json({
-        success: true,
-        user,
-    });
+    sendToken(user, 200, res);
 }));
 
 router.get("/profile",catchAsyncErrors(async (req, res, next) => {
@@ -135,5 +132,28 @@ router.get("/addresses",isAuthenticatedUser, catchAsyncErrors(async (req, res, n
 
 
 
+router.put("/update-profile", isAuthenticatedUser, catchAsyncErrors(async (req, res, next) => {
+    const { name, phoneNumber, email } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+        return next(new ErrorHandler("User not found", 404));
+    }
+
+    if (name) user.name = name;
+    if (phoneNumber) user.phoneNumber = phoneNumber;
+
+    await user.save();
+
+    res.status(200).json({
+        success: true,
+        user: {
+            name: user.name,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            avatarUrl: user.avatar.url
+        }
+    });
+}));
 
 module.exports = router;

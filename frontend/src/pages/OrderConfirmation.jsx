@@ -1,288 +1,253 @@
-// OrderConfirmation.jsx
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import axios from "../axiosConfig";
 import Nav from "../components/auth/nav";
 import { useLocation, useNavigate } from "react-router-dom";
-// 1) Import PayPalScriptProvider & PayPalButtons
-import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";//milestone_30 completed
+import { useSelector } from "react-redux";
+import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
+import { MapPin, ShoppingBag, CreditCard, CheckCircle, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+
 const OrderConfirmation = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { addressId, email } = location.state || {};
-  const [selectedAddress, setSelectedAddress] = useState(null);
-  const [cartItems, setCartItems] = useState([]); 
-  const [totalPrice, setTotalPrice] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [orderDetails, setOrderDetails] = useState(null);
-  // 2) Track which payment method is selected
-  const [paymentMethod, setPaymentMethod] = useState("cod"); // 'cod' or 'paypal'
-  useEffect(() => {
-    if (!addressId || !email) {
-      navigate("/select-address");
-      return;
-    }
-    const fetchData = async () => {
-      try {
-        const [addressResponse, cartResponse] = await Promise.all([
-          axios.get("http://localhost:8000/api/v2/user/addresses", {
-            params: { email },
-          }),
-          axios.get("http://localhost:8000/api/v2/product/cartproducts", {
-            params: { email },
-          }),
-        ]);
-        const address = addressResponse.data.addresses.find(
-          (addr) => addr._id === addressId
-        );
-        setSelectedAddress(address || {});
-        const processedCartItems = cartResponse.data.cart.map((item) => ({
-          _id: item.productId._id,
-          name: item.productId.name,
-          price: item.productId.price,
-          images: item.productId.images.map(
-            (imagePath) => `http://localhost:8000${imagePath}`
-          ),
-          quantity: item.quantity,
-        }));
-        setCartItems(processedCartItems);
-        setTotalPrice(
-          processedCartItems.reduce(
-            (acc, item) => acc + item.price * item.quantity,
-            0
-          )
-        );
-      } catch (err) {
-        setError(
-          err.response?.data?.message ||
-          err.message ||
-          "An unexpected error occurred."
-        );
-      } finally {
-        setLoading(false);
-      }
+    const location = useLocation();
+    const navigate = useNavigate();
+    const userEmailFromRedux = useSelector((state) => state.user.email);
+    const { addressId } = location.state || {};
+    const email = location.state?.email || userEmailFromRedux;
+
+    const [selectedAddress, setSelectedAddress] = useState(null);
+    const [cartItems, setCartItems] = useState([]);
+    const [totalPrice, setTotalPrice] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [orderDetails, setOrderDetails] = useState(null);
+    const [paymentMethod, setPaymentMethod] = useState("cod");
+
+    useEffect(() => {
+        if (!addressId || !email) {
+            navigate("/select-address");
+            return;
+        }
+
+        const fetchData = async () => {
+            try {
+                const [addressResponse, cartResponse] = await Promise.all([
+                    axios.get(`/api/v2/user/addresses?email=${email}`),
+                    axios.get(`/api/v2/product/cartproducts?email=${email}`),
+                ]);
+
+                const address = addressResponse.data.addresses.find(
+                    (addr) => addr._id === addressId
+                );
+                setSelectedAddress(address || {});
+
+                const processedCartItems = cartResponse.data.cart.map((item) => ({
+                    _id: item.productId._id,
+                    name: item.productId.name,
+                    price: item.productId.price,
+                    images: item.productId.images,
+                    quantity: item.quantity,
+                }));
+
+                setCartItems(processedCartItems);
+
+                const total = processedCartItems.reduce(
+                    (acc, item) => acc + item.price * item.quantity,
+                    0
+                );
+                setTotalPrice(total);
+            } catch (err) {
+                setError(err.response?.data?.message || err.message || "An unexpected error occurred.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [addressId, email, navigate]);
+
+    const handlePlaceOrder = async (paymentType = "cod", paypalOrderData = null) => {
+        try {
+            const orderItems = cartItems.map((item) => ({
+                product: item._id,
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                image: item.images?.[0] || "",
+            }));
+
+            const payload = {
+                email,
+                shippingAddress: selectedAddress,
+                orderItems,
+                paymentMethod: paymentType,
+                paypalOrderData,
+            };
+
+            const response = await axios.post("/api/v2/orders/place-order", payload);
+            setOrderDetails(response.data.orders);
+        } catch (error) {
+            console.error("Error placing order:", error);
+            setError("Failed to place order. Try again.");
+        }
     };
-    fetchData();
-  }, [addressId, email, navigate]);
-  // 3) Single function to place order, can accept PayPal data if payment was
- 
-  const handlePlaceOrder = async (
-    paymentType = "cod",
-    paypalOrderData = null
-  ) => {
-    try {
-      // Prepare order items
-      const orderItems = cartItems.map((item) => ({
-        product: item._id,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        image:
-          item.images && item.images.length > 0
-            ? item.images[0]
-            : "/default-avatar.png",
-      }));
-      // // Remove circular references or unwanted properties
-      // const cleanAddress = (({ _id, address1, city, state, zipCode }) => ({
-      // _id, address1, city, state, zipCode
-      // }))(selectedAddress);
-      // Construct payload with paymentMethod and optional PayPal data
-      const payload = {
-        email,
-        shippingAddress: selectedAddress,
-        orderItems,
-        paymentMethod: paymentType, // 'cod' or 'paypal'
-        // Optionally store PayPal transaction details:
-        paypalOrderData,
-      };
-      const response = await axios.post(
-        "http://localhost:8000/api/v2/orders/place-order",
-        payload
-      );
-      setOrderDetails(response.data.orders);
-    } catch (error) {
-      console.error("Error placing order:", error);
-    }
-  };
-  const closePopup = () => {
-    navigate("/myorders");
-  };
-  //4)Error and loading state were not handled in previous ones so include here
-  if (loading) {
-    return (
-      <div className="w-full h-screen flex justify-center items-center">
-        <p className="text-lg">Processing...</p>
-      </div>
+
+    if (loading) return (
+        <div className="min-h-screen bg-neutral-900 flex flex-col items-center justify-center">
+            <Loader2 className="animate-spin text-indigo-500 mb-4" size={48} />
+            <p className="text-neutral-400">Preparing your order summary...</p>
+        </div>
     );
-  }
-  if (error) {
+
     return (
-      <div className="w-full h-screen flex flex-col justify-center items-center">
-        <p className="text-red-500 text-lg mb-4">Error: {error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue600"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
-  return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-purple-100 toblue-200">
-      <Nav />
-      <div className="max-w-5xl mx-auto p-6">
-        <h2 className="text-3xl font-bold text-center mb-8">
-          Order Confirmation
-        </h2>
-        {loading ? (
-          <p className="text-center">Processing...</p>
-        ) : error ? (
-          <div className="text-center text-red-500">{error}</div>
-        ) : (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-              <h3 className="text-xl font-semibold mb-4">Shipping Address</h3>
-              <p>
-                {selectedAddress.address1}, {selectedAddress.city},{" "}
-                {selectedAddress.state}, {selectedAddress.zipCode}
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-              <h3 className="text-xl font-semibold mb-4">Cart Items</h3>
-              {cartItems.length > 0 ? (
-                cartItems.map((item) => (
-                  <div
-                    key={item._id}
-                    className="flex items-center justify-between p-4 border-b"
-                  >
-                    <img
-                      src={item.images[0] || "/default-avatar.png"}
-                      alt={item.name}
-                      className="w-20 h-20 object-cover rounded-lg"
-                    />
-                    <div className="flex-1 ml-4">
-                      <h4 className="font-medium">{item.name}</h4>
-                      <p>Quantity: {item.quantity}</p>
+        <div className="min-h-screen bg-neutral-900 pb-20">
+            <Nav />
+            <div className="max-w-6xl mx-auto px-4 py-12">
+                <h1 className="text-4xl font-bold text-white mb-12 flex items-center space-x-4">
+                    <CheckCircle className="text-indigo-500" size={40} />
+                    <span>Review & Confirm</span>
+                </h1>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 space-y-8">
+                        {/* Shipping */}
+                        <div className="bg-neutral-800/50 backdrop-blur-xl border border-white/5 p-8 rounded-3xl shadow-xl">
+                            <h3 className="text-xl font-bold text-white mb-6 flex items-center space-x-2">
+                                <MapPin className="text-indigo-500" size={24} />
+                                <span>Shipping Destination</span>
+                            </h3>
+                            <div className="bg-neutral-900/50 p-6 rounded-2xl border border-white/5">
+                                <p className="text-white text-lg font-medium">{selectedAddress?.address1}</p>
+                                {selectedAddress?.address2 && <p className="text-neutral-400">{selectedAddress.address2}</p>}
+                                <p className="text-neutral-400 mt-1">{selectedAddress?.city}, {selectedAddress?.zipCode}</p>
+                                <p className="text-neutral-500 text-sm mt-3 uppercase tracking-wider font-bold">{selectedAddress?.country}</p>
+                            </div>
+                        </div>
+
+                        {/* Order Items */}
+                        <div className="bg-neutral-800/50 backdrop-blur-xl border border-white/5 p-8 rounded-3xl shadow-xl">
+                            <h3 className="text-xl font-bold text-white mb-6 flex items-center space-x-2">
+                                <ShoppingBag className="text-indigo-500" size={24} />
+                                <span>Order Items</span>
+                            </h3>
+                            <div className="space-y-4">
+                                {cartItems.map((item) => (
+                                    <div key={item._id} className="flex items-center space-x-4 p-4 bg-neutral-900/50 rounded-2xl border border-white/5">
+                                        <div className="w-20 h-20 bg-neutral-800 rounded-xl overflow-hidden flex-shrink-0">
+                                            <img
+                                                src={`http://localhost:8000${item.images?.[0]}`}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                        <div className="flex-1">
+                                            <h4 className="text-white font-medium">{item.name}</h4>
+                                            <p className="text-neutral-400 text-sm">Qty: {item.quantity}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-white font-bold">${(item.price * item.quantity).toFixed(2)}</p>
+                                            <p className="text-neutral-500 text-xs">${item.price} each</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Payment Method Selector */}
+                        <div className="bg-neutral-800/50 backdrop-blur-xl border border-white/5 p-8 rounded-3xl shadow-xl">
+                            <h3 className="text-xl font-bold text-white mb-6 flex items-center space-x-2">
+                                <CreditCard className="text-indigo-500" size={24} />
+                                <span>Payment Strategy</span>
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <button 
+                                    onClick={() => setPaymentMethod("cod")}
+                                    className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center space-y-3 ${paymentMethod === 'cod' ? 'bg-indigo-500/10 border-indigo-500 text-white' : 'bg-white/5 border-white/5 text-neutral-400 hover:border-white/10'}`}
+                                >
+                                    <ShoppingBag size={32} />
+                                    <span className="font-bold">Cash on Delivery</span>
+                                </button>
+                                <button 
+                                    onClick={() => setPaymentMethod("paypal")}
+                                    className={`p-6 rounded-2xl border-2 transition-all flex flex-col items-center space-y-3 ${paymentMethod === 'paypal' ? 'bg-indigo-500/10 border-indigo-500 text-white' : 'bg-white/5 border-white/5 text-neutral-400 hover:border-white/10'}`}
+                                >
+                                    <CreditCard size={32} />
+                                    <span className="font-bold">PayPal / Online</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <p className="font-bold">
-                      ${(item.price * item.quantity).toFixed(2)}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-center text-red-500">No items in cart</p>
-              )}
-            </div>
-            {/* 5.)Payment Method (Cash on Delivery or PayPal) */}
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-              <h3 className="text-xl font-medium mb-2">Payment Method</h3>
-              <div className="p-4 border rounded-md space-x-4">
-                <label className="mr-4">
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="cod"
-                    checked={paymentMethod === "cod"}
-                    onChange={() => setPaymentMethod("cod")}
-                  />
-                  <span className="ml-2">Cash on Delivery</span>
-                </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="paypal"
-                    checked={paymentMethod === "paypal"}
-                    onChange={() => setPaymentMethod("paypal")}
-                  />
-                  <span className="ml-2">Pay Online (PayPal)</span>
-                </label>
-              </div>
-              {paymentMethod === "paypal" && (
-                <div className="mt-4" style={{ maxWidth: "500px" }}>
-                  <PayPalScriptProvider
-                    options={{
-                      "client-id":
-                        "AYMI_d7yjDOJz1X7myS5Rfm-ynuBdZHtPhtOxfpPTWH2ggh4VneSrGWKF3YQzn43azyq6RzwGChtf5MI",
-                    }}
-                  >
-                    <PayPalButtons
-                      style={{ layout: "vertical" }}
-                      createOrder={(data, actions) => {
-                        return actions.order.create({
-                          purchase_units: [
-                            {
-                              amount: {
-                                value: totalPrice.toFixed(2),
-                              },
-                            },
-                          ],
-                        });
-                      }}
-                      onApprove={async (data, actions) => {
-                        // Captures funds from the transaction
-                        const order = await actions.order.capture();
-                        console.log("PayPal order success:", order);
-                        // Call place order with PayPal data
-                        handlePlaceOrder("paypal", order);
-                      }}
-                      onError={(err) => {
-                        console.error("PayPal checkout error:", err);
-                      }}
-                    />
-                  </PayPalScriptProvider>
+
+                    {/* Summary Sidebar */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-neutral-800/50 backdrop-blur-xl border border-white/5 p-8 rounded-3xl shadow-xl sticky top-32">
+                            <h3 className="text-xl font-bold text-white mb-8 border-b border-white/5 pb-4">Order Summary</h3>
+                            <div className="space-y-4 mb-8">
+                                <div className="flex justify-between text-neutral-400">
+                                    <span>Subtotal</span>
+                                    <span>${totalPrice.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-neutral-400 text-sm">
+                                    <span>Shipping</span>
+                                    <span className="text-green-500">FREE</span>
+                                </div>
+                                <div className="pt-4 border-t border-white/10 flex justify-between">
+                                    <span className="text-white font-bold text-lg">Grand Total</span>
+                                    <span className="text-indigo-400 font-bold text-xl">${totalPrice.toFixed(2)}</span>
+                                </div>
+                            </div>
+
+                            {paymentMethod === "cod" ? (
+                                <button
+                                    onClick={() => handlePlaceOrder("cod")}
+                                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-500 transition-all shadow-xl shadow-indigo-600/20 active:scale-95 flex items-center justify-center space-x-2"
+                                >
+                                    <CheckCircle2 size={24} />
+                                    <span>Place Order Now</span>
+                                </button>
+                            ) : (
+                                <PayPalScriptProvider options={{ "client-id": "AYMI_d7yjDOJz1X7myS5Rfm-ynuBdZHtPhtOxfpPTWH2ggh4VneSrGWKF3YQzn43azyq6RzwGChtf5MI" }}>
+                                    <PayPalButtons
+                                        style={{ layout: "vertical", shape: "pill" }}
+                                        createOrder={(data, actions) => actions.order.create({ purchase_units: [{ amount: { value: totalPrice.toFixed(2) } }] })}
+                                        onApprove={async (data, actions) => {
+                                            const order = await actions.order.capture();
+                                            handlePlaceOrder("paypal", order);
+                                        }}
+                                    />
+                                </PayPalScriptProvider>
+                            )}
+                        </div>
+                    </div>
                 </div>
-              )}
+
+                {/* Status Modals / Errors */}
+                {orderDetails && (
+                    <div className="fixed inset-0 bg-neutral-900/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                        <div className="bg-neutral-800 border border-white/10 p-12 rounded-[2rem] max-w-lg w-full text-center shadow-2xl relative overflow-hidden">
+                             <div className="absolute top-0 left-0 w-full h-2 bg-indigo-500" />
+                             <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-8 text-green-500 animate-bounce">
+                                <CheckCircle size={48} />
+                             </div>
+                             <h2 className="text-3xl font-bold text-white mb-4">Success!</h2>
+                             <p className="text-neutral-400 mb-10 leading-relaxed">Your order has been placed and is now being processed by our master craftsmen.</p>
+                             <button
+                                onClick={() => navigate("/myorders")}
+                                className="w-full py-4 bg-white text-black font-bold rounded-2xl hover:bg-neutral-200 transition-all"
+                             >
+                                View My Orders
+                             </button>
+                        </div>
+                    </div>
+                )}
+
+                {error && (
+                    <div className="mt-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 flex items-center space-x-3">
+                        <AlertCircle size={20} />
+                        <span>{error}</span>
+                    </div>
+                )}
             </div>
-            {/* 6) button for COD Orders */}
-            {paymentMethod === "cod" && (
-              <div className="flex justify-center">
-                <button
-                  onClick={() => handlePlaceOrder("cod", null)}
-                  className="bg-green-500 text-white px-6 py-3 rounded-md
-hover:bg-green-600 transition-colors"
-                >
-                  Place Order
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        {orderDetails && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center
-justify-center">
-            <div className="bg-white p-6 rounded-lg shadow-lg max-w-2xl
-relative">
-              <h2 className="text-2xl font-bold mb-4">
-                Order Placed Successfully!
-              </h2>
-              {orderDetails.map((order, index) => (
-                <div key={index} className="mb-6">
-                  <h3 className="text-xl font-semibold">Order #{index + 1}</h3>
-                  <p>Total Amount: ${order.totalAmount}</p>
-                  <h4 className="font-medium mt-4">Items:</h4>
-                  <ul className="list-disc ml-6">
-                    {order.orderItems.map((item, i) => (
-                      <li key={i}>
-                        {item.name} - {item.quantity} x ${item.price}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-              <button
-                onClick={closePopup}
-                className="absolute top-4 right-4 bg-black text-white px-4 py-2
-rounded-lg hover:bg-gray-100"
-              >
-                ❌
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+        </div>
+    );
 };
+
 export default OrderConfirmation;

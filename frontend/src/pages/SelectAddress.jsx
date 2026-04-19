@@ -1,46 +1,27 @@
-// SelectAddress.jsx
 import React, { useState, useEffect } from 'react';
-import Nav from '../components/auth/nav'; // Ensure the path is correct and component name matches
-import { useNavigate } from 'react-router-dom';
-
-// Optionally, if you have a context or a way to get the authenticated user's email, import it
-// import { useAuth } from '../contexts/AuthContext';
+import Nav from '../components/auth/nav';
+import { useNavigate, Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import axios from '../axiosConfig';
+import { MapPin, ArrowLeft, CheckCircle2, Loader2, Plus } from 'lucide-react';
 
 const SelectAddress = () => {
     const [addresses, setAddresses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const navigate = useNavigate();
-
-    // Optionally, get the authenticated user's email from context or props
-    // const { user } = useAuth();
-    const userEmail = 'Pranav@gmail.com'; // Replace with dynamic email in production
+    const userEmail = useSelector((state) => state.user.email);
 
     useEffect(() => {
+        if (!userEmail) {
+            setLoading(false);
+            return;
+        }
+
         const fetchAddresses = async () => {
             try {
-                const response = await fetch(`http://localhost:8000/api/v2/user/addresses?email=${encodeURIComponent(userEmail)}`);
-
-                if (!response.ok) {
-                    // Handle specific HTTP errors
-                    if (response.status === 404) {
-                        throw new Error('User not found.');
-                    } else if (response.status === 400) {
-                        throw new Error('Bad request. Email parameter is missing.');
-                    } else {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                }
-
-                const data = await response.json();
-
-                // Validate the response structure
-                if (data && Array.isArray(data.addresses)) {
-                    setAddresses(data.addresses);
-                } else {
-                    setAddresses([]);
-                    console.warn('Unexpected response structure:', data);
-                }
+                const response = await axios.get(`/api/v2/user/addresses?email=${userEmail}`);
+                setAddresses(response.data.addresses || []);
             } catch (err) {
                 console.error('Error fetching addresses:', err);
                 setError(err.message || 'An unexpected error occurred.');
@@ -53,70 +34,85 @@ const SelectAddress = () => {
     }, [userEmail]);
 
     const handleSelectAddress = (addressId) => {
-        // Optionally, pass the entire address object instead of just the ID
         navigate('/order-confirmation', { state: { addressId } });
     };
 
-    // Render loading state
-    if (loading) {
-        return (
-            <div className='w-full h-screen flex justify-center items-center'>
-                <p className='text-lg'>Loading addresses...</p>
-            </div>
-        );
-    }
-
-    // Render error state
-    if (error) {
-        return (
-            <div className='w-full h-screen flex flex-col justify-center items-center'>
-                <p className='text-red-500 text-lg mb-4'>Error: {error}</p>
-                <button
-                    onClick={() => window.location.reload()}
-                    className='bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600'
-                >
-                    Retry
-                </button>
-            </div>
-        );
-    }
-
     return (
-        <div className='w-full min-h-screen flex flex-col'>
+        <div className='min-h-screen bg-neutral-900 pb-20'>
             <Nav />
-            <div className='flex-grow flex justify-center items-center p-4'>
-                <div className='w-full max-w-4xl border border-neutral-300 rounded-md flex flex-col p-6 bg-white shadow-md'>
-                    <h2 className='text-2xl font-semibold mb-6 text-center'>Select Shipping Address</h2>
-                    {addresses.length > 0 ? (
-                        <div className='space-y-4 overflow-auto max-h-96'>
+            <div className='max-w-4xl mx-auto px-4 py-12'>
+                <div className='flex items-center justify-between mb-12'>
+                    <div>
+                        <h1 className='text-4xl font-bold text-white mb-2'>Select Address</h1>
+                        <p className='text-neutral-400'>Where should we send your order?</p>
+                    </div>
+                    <Link to="/cart" className='text-neutral-400 hover:text-white flex items-center space-x-2 transition-colors'>
+                        <ArrowLeft size={18} />
+                        <span>Back to Cart</span>
+                    </Link>
+                </div>
+
+                {loading ? (
+                    <div className='flex flex-col items-center justify-center py-32'>
+                        <Loader2 className='animate-spin text-indigo-500 mb-4' size={48} />
+                        <p className='text-neutral-400'>Loading your addresses...</p>
+                    </div>
+                ) : !userEmail ? (
+                    <div className='bg-neutral-800/30 rounded-3xl border border-white/5 p-16 text-center'>
+                        <h2 className='text-2xl font-bold text-white mb-4'>Please Login</h2>
+                        <Link to="/login" className='px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold'>Sign In</Link>
+                    </div>
+                ) : (
+                    <div className='space-y-6'>
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
                             {addresses.map((address) => (
                                 <div
                                     key={address._id}
-                                    className='border p-4 rounded-md flex justify-between items-center hover:shadow-md transition-shadow'
+                                    onClick={() => handleSelectAddress(address._id)}
+                                    className='group bg-neutral-800/50 border border-white/5 p-6 rounded-3xl hover:bg-neutral-800 hover:border-indigo-500/50 transition-all cursor-pointer relative overflow-hidden'
                                 >
-                                    <div>
-                                        <p className='font-medium'>
-                                            {address.address1}{address.address2 ? `, ${address.address2}` : ''}, {address.city}, {address.state}, {address.zipCode}
-                                        </p>
-                                        <p className='text-sm text-gray-600'>{address.country}</p>
-                                        <p className='text-sm text-gray-500'>Type: {address.addressType || 'N/A'}</p>
+                                    <div className='flex items-start justify-between mb-4'>
+                                        <div className='p-2 bg-indigo-500/10 rounded-xl text-indigo-400'>
+                                            <MapPin size={20} />
+                                        </div>
+                                        <span className='px-2 py-1 bg-white/5 text-neutral-500 text-[10px] uppercase font-bold tracking-wider rounded-md'>
+                                            {address.addressType || 'Other'}
+                                        </span>
                                     </div>
-                                    <button
-                                        onClick={() => handleSelectAddress(address._id)}
-                                        className='bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400'
-                                    >
-                                        Select
+                                    <div className='space-y-1 mb-6'>
+                                        <p className='text-white font-medium truncate'>{address.address1}</p>
+                                        {address.address2 && <p className='text-neutral-400 text-sm truncate'>{address.address2}</p>}
+                                        <p className='text-neutral-400 text-sm'>{address.city}, {address.zipCode}</p>
+                                        <p className='text-neutral-500 text-xs mt-2'>{address.country}</p>
+                                    </div>
+                                    <button className='w-full py-3 bg-white/5 text-white font-bold rounded-xl group-hover:bg-indigo-600 transition-all flex items-center justify-center space-x-2'>
+                                        <span>Ship Here</span>
+                                        <CheckCircle2 size={18} className='opacity-0 group-hover:opacity-100 transition-opacity' />
                                     </button>
                                 </div>
                             ))}
+                            
+                            <Link 
+                                to="/create-address"
+                                className='bg-neutral-800/30 border-2 border-dashed border-white/5 p-8 rounded-3xl flex flex-col items-center justify-center text-neutral-500 hover:text-indigo-400 hover:border-indigo-500/30 hover:bg-neutral-800/50 transition-all'
+                            >
+                                <div className='w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-4'>
+                                    <Plus size={24} />
+                                </div>
+                                <span className='font-bold'>Add New Address</span>
+                            </Link>
                         </div>
-                    ) : (
-                        <p className='text-center text-gray-700'>No addresses found. Please add an address.</p>
-                    )}
-                </div>
+                    </div>
+                )}
+
+                {error && (
+                    <div className='mt-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-center'>
+                        {error}
+                    </div>
+                )}
             </div>
         </div>
     );
 };
 
-export default SelectAddress;
+export default SelectAddress;
